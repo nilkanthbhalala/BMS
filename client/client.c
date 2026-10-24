@@ -371,11 +371,9 @@ int main(int argc, char **argv)
             continue;
         if (strcmp(role_choice, "6") == 0)
             return 0;
-        const char *role = strcmp(role_choice, "1") == 0 ? "user" :
-                           strcmp(role_choice, "2") == 0 ? "joint" :
-                           strcmp(role_choice, "3") == 0 ? "employee" :
-                           strcmp(role_choice, "4") == 0 ? "manager" :
-                           strcmp(role_choice, "5") == 0 ? "admin" : NULL;
+        const char *role = strcmp(role_choice, "1") == 0 ? "user": strcmp(role_choice, "2") == 0 ? "joint": strcmp(role_choice, "3") == 0 ? "employee":
+            strcmp(role_choice, "4") == 0 ? "manager": strcmp(role_choice, "5") == 0 ? "admin" : NULL;
+
         if (role == NULL) {
             (void)write_text("Choose a number from 1 to 6.\n");
             continue;
