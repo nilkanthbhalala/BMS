@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+<rect width="1200" height="760" fill="#f7f9fc"/>
+<text x="600" y="42" text-anchor="middle" font-family="Arial" font-size="27" font-weight="bold" fill="#172b4d">Online Banking System Architecture</text>
+<g font-family="Arial" fill="#172b4d" text-anchor="middle">
+<rect x="60" y="130" width="230" height="130" rx="14" fill="#e8f1ff" stroke="#3478c8" stroke-width="2"/><text x="175" y="177" font-size="22" font-weight="bold">Client Program</text><text x="175" y="215" font-size="16">Terminal menu / TCP socket</text>
+<rect x="365" y="130" width="300" height="130" rx="14" fill="#e9f8ef" stroke="#31915b" stroke-width="2"/><text x="515" y="177" font-size="22" font-weight="bold">Bank Server</text><text x="515" y="215" font-size="16">socket, bind, listen, accept, poll</text>
+<rect x="740" y="90" width="400" height="210" rx="14" fill="#fff4df" stroke="#d89422" stroke-width="2"/><text x="940" y="130" font-size="22" font-weight="bold">Role Service Threads</text><text x="940" y="170" font-size="16">One pthread per client</text><text x="940" y="202" font-size="16">Customer / Employee / Manager / Admin</text><text x="940" y="234" font-size="16">Role checks and request dispatch</text><text x="940" y="270" font-size="15">Up to 128 concurrent connections</text>
+<path d="M290 195 H355" stroke="#34495e" stroke-width="3"/><polygon points="355,195 343,188 343,202" fill="#34495e"/><text x="322" y="180" font-size="14">TCP</text>
+<path d="M665 195 H730" stroke="#34495e" stroke-width="3"/><polygon points="730,195 718,188 718,202" fill="#34495e"/>
+<rect x="350" y="390" width="360" height="150" rx="14" fill="#f0eaff" stroke="#7655b5" stroke-width="2"/><text x="530" y="435" font-size="22" font-weight="bold">Storage and WAL</text><text x="530" y="475" font-size="16">fcntl record locks, pread/pwrite</text><text x="530" y="507" font-size="16">fsync and journal replay on startup</text>
+<rect x="800" y="390" width="340" height="150" rx="14" fill="#e5f6f7" stroke="#258b91" stroke-width="2"/><text x="970" y="435" font-size="22" font-weight="bold">Data Files</text><text x="970" y="475" font-size="16">accounts, staff, loans</text><text x="970" y="507" font-size="16">transactions, journal</text>
+<path d="M890 300 V345 H710 V450" fill="none" stroke="#34495e" stroke-width="3"/><polygon points="710,450 703,438 717,438" fill="#34495e"/>
+<path d="M710 465 H790" stroke="#34495e" stroke-width="3"/><polygon points="790,465 778,458 778,472" fill="#34495e"/>
+<rect x="60" y="390" width="230" height="150" rx="14" fill="#ffecec" stroke="#c84c4c" stroke-width="2"/><text x="175" y="435" font-size="22" font-weight="bold">Audit Writer</text><text x="175" y="475" font-size="16">Separate forked process</text><text x="175" y="507" font-size="16">Pipe input → audit.log</text>
+<path d="M780 300 V350 H290 V450" fill="none" stroke="#34495e" stroke-width="3"/><polygon points="290,450 283,438 297,438" fill="#34495e"/><text x="520" y="340" font-size="14">pipe events</text>
+<rect x="285" y="625" width="630" height="70" rx="12" fill="#ffffff" stroke="#9aabb9" stroke-width="2"/><text x="600" y="668" font-size="17">POSIX/Linux interfaces: sockets · pthreads · fork · pipe · fcntl · pread/pwrite · fsync</text>
+</g>
+</svg>

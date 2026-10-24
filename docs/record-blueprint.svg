@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="820" viewBox="0 0 1300 820">
+<rect width="1300" height="820" fill="#f7f9fc"/>
+<text x="650" y="42" text-anchor="middle" font-family="Arial" font-size="28" font-weight="bold" fill="#172b4d">Record Blueprint (C Structures)</text>
+<g font-family="Arial" font-size="16" fill="#172b4d">
+<rect x="55" y="100" width="540" height="290" rx="8" fill="#ffffff" stroke="#3478c8" stroke-width="2"/><rect x="55" y="100" width="540" height="44" rx="8" fill="#e8f1ff"/><text x="325" y="130" text-anchor="middle" font-size="21" font-weight="bold">Account</text>
+<text x="82" y="177">id : uint32_t</text><text x="82" y="207">type, active : uint32_t</text><text x="82" y="237">session_a, session_b : uint32_t</text><text x="82" y="267">balance_cents : int64_t</text><text x="82" y="297">name_a, name_b : char[BANK_NAME]</text><text x="82" y="327">username_a, username_b : char[BANK_USER]</text><text x="82" y="357">hash_a, hash_b, phone : char arrays</text>
+<rect x="705" y="100" width="540" height="290" rx="8" fill="#ffffff" stroke="#31915b" stroke-width="2"/><rect x="705" y="100" width="540" height="44" rx="8" fill="#e9f8ef"/><text x="975" y="130" text-anchor="middle" font-size="21" font-weight="bold">Transaction</text>
+<text x="732" y="177">account_id : uint32_t</text><text x="732" y="207">actor : char[BANK_USER]</text><text x="732" y="237">kind : char[16]</text><text x="732" y="267">amount_cents : int64_t</text><text x="732" y="297">before_cents, after_cents : int64_t</text><text x="732" y="327">timestamp : char[BANK_TIME]</text><text x="732" y="357">Append-only financial history row</text>
+<rect x="55" y="450" width="540" height="290" rx="8" fill="#ffffff" stroke="#d89422" stroke-width="2"/><rect x="55" y="450" width="540" height="44" rx="8" fill="#fff4df"/><text x="325" y="480" text-anchor="middle" font-size="21" font-weight="bold">Loan</text>
+<text x="82" y="527">id, account_id, status : uint32_t</text><text x="82" y="557">term_months : uint32_t</text><text x="82" y="587">principal_cents, rate_basis_points : int64_t</text><text x="82" y="617">applicant, reviewer : char[BANK_USER]</text><text x="82" y="647">requested_at, reviewed_at : char[BANK_TIME]</text><text x="82" y="697">One account can have multiple loan requests</text>
+<rect x="705" y="450" width="540" height="290" rx="8" fill="#ffffff" stroke="#7655b5" stroke-width="2"/><rect x="705" y="450" width="540" height="44" rx="8" fill="#f0eaff"/><text x="975" y="480" text-anchor="middle" font-size="21" font-weight="bold">Staff</text>
+<text x="732" y="527">role : uint32_t (employee or manager)</text><text x="732" y="557">active : uint32_t</text><text x="732" y="587">username : char[BANK_USER]</text><text x="732" y="617">password_hash : char[BANK_HASH]</text><text x="732" y="667">Administrator record is stored separately</text>
+<path d="M595 245 H695" stroke="#34495e" stroke-width="3"/><text x="645" y="232" text-anchor="middle" font-size="14">account_id</text>
+<path d="M325 390 V440" stroke="#34495e" stroke-width="3"/><text x="340" y="421" font-size="14">account_id</text>
+</g>
+</svg>
