@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "bank.h"
+#include "server_internal.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -24,20 +25,8 @@ typedef struct {
     int socket_fd;
 } ClientContext;
 
-typedef struct {
-    time_t timestamp;
-    pid_t process_id;
-    uint32_t account_id;
-    char event[24];
-    char username[BANK_USER];
-    char details[96];
-} AuditEvent;
-
-_Static_assert(sizeof(AuditEvent) <= PIPE_BUF, "audit event must be an atomic pipe write");
-
 static volatile sig_atomic_t stopping;
 static volatile sig_atomic_t signal_pipe_write = -1;
-static int audit_write_fd = -1;
 static pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t clients_finished = PTHREAD_COND_INITIALIZER;
 static ClientContext *clients[MAX_CLIENTS];
@@ -57,84 +46,6 @@ static void handle_stop(int signal_number)
             stopping = 1;
     }
     errno = saved_errno;
-}
-
-static int write_all_fd(int fd, const void *buffer, size_t length)
-{
-    const unsigned char *cursor = buffer;
-    size_t written = 0;
-    while (written < length) {
-        ssize_t count = write(fd, cursor + written, length - written);
-        if (count < 0 && errno == EINTR)
-            continue;
-        if (count <= 0)
-            return -1;
-        written += (size_t)count;
-    }
-    return 0;
-}
-
-static void audit_writer(int read_fd)
-{
-    int log_fd = open(BANK_AUDIT_FILE, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0600);
-    if (log_fd < 0)
-        _exit(1);
-    for (;;) {
-        AuditEvent event;
-        unsigned char *cursor = (unsigned char *)&event;
-        size_t received = 0;
-        while (received < sizeof(event)) {
-            ssize_t count = read(read_fd, cursor + received, sizeof(event) - received);
-            if (count < 0 && errno == EINTR)
-                continue;
-            if (count < 0) {
-                close(log_fd);
-                close(read_fd);
-                _exit(1);
-            }
-            if (count == 0) {
-                close(log_fd);
-                close(read_fd);
-                _exit(0);
-            }
-            received += (size_t)count;
-        }
-        struct tm local_time;
-        char timestamp[32];
-        if (localtime_r(&event.timestamp, &local_time) == NULL)
-            (void)snprintf(timestamp, sizeof(timestamp), "unknown");
-        else
-            (void)strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local_time);
-        char line[256];
-        int length = snprintf(line, sizeof(line), "%s | pid=%ld | %s | account=%u | user=%s | %s\n",
-                              timestamp, (long)event.process_id, event.event, event.account_id,
-                              event.username, event.details);
-        if (length < 0 || (size_t)length >= sizeof(line) || write_all_fd(log_fd, line, (size_t)length) < 0) {
-            close(log_fd);
-            close(read_fd);
-            _exit(1);
-        }
-    }
-}
-
-void audit_log_event(const char *event, const char *username, uint32_t account_id, const char *details)
-{
-    if (audit_write_fd < 0)
-        return;
-    AuditEvent record;
-    memset(&record, 0, sizeof(record));
-    record.timestamp = time(NULL);
-    record.process_id = getpid();
-    record.account_id = account_id;
-    (void)snprintf(record.event, sizeof(record.event), "%s", event);
-    (void)snprintf(record.username, sizeof(record.username), "%s", username);
-    (void)snprintf(record.details, sizeof(record.details), "%s", details);
-    for (;;) {
-        ssize_t count = write(audit_write_fd, &record, sizeof(record));
-        if (count < 0 && errno == EINTR)
-            continue;
-        break;
-    }
 }
 
 static int handle_login(int fd, char **fields, int count, Session *session)
@@ -301,7 +212,7 @@ int main(int argc, char **argv)
         audit_writer(audit_pipe[0]);
     }
     close(audit_pipe[0]);
-    audit_write_fd = audit_pipe[1];
+    audit_set_fd(audit_pipe[1]);
 
     (void)dprintf(STDOUT_FILENO, "Online Banking server listening on port %u\n", (unsigned)port);
     (void)dprintf(STDOUT_FILENO, "Audit writer process: %ld\n", (long)audit_process);
@@ -384,11 +295,7 @@ int main(int argc, char **argv)
     while (active_clients > 0)
         (void)pthread_cond_wait(&clients_finished, &clients_mutex);
     pthread_mutex_unlock(&clients_mutex);
-    audit_log_event("SERVER_STOP", "server", 0, "graceful shutdown");
-    close(audit_write_fd);
-    audit_write_fd = -1;
-    while (waitpid(audit_process, NULL, 0) < 0 && errno == EINTR)
-        ;
+    audit_stop(audit_process);
     signal_pipe_write = -1;
     close(signal_pipe[0]);
     close(signal_pipe[1]);
