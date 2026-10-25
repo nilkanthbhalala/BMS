@@ -228,15 +228,17 @@ static int admin_menu(int socket_fd)
             if (exchange(socket_fd, command) < 0)
                 return -1;
         } else if (strcmp(choice, "4") == 0) {
-            (void)write_text("For a normal account, leave second holder name blank. Active: 1, inactive: 0.\n");
+            (void)write_text("For a normal account, leave the second holder name and username blank. Account holders must log out before usernames change. Active: 1, inactive: 0.\n");
             if (ask("Account number: ", fields[0], sizeof(fields[0]), 0) < 0 ||
                 ask("First holder name: ", fields[1], sizeof(fields[1]), 0) < 0 ||
                 ask("Second holder name: ", fields[2], sizeof(fields[2]), 0) < 0 ||
-                ask("Phone: ", fields[3], sizeof(fields[3]), 0) < 0 ||
-                ask("Active (1/0): ", fields[4], sizeof(fields[4]), 0) < 0)
+                ask("First username: ", fields[3], sizeof(fields[3]), 0) < 0 ||
+                ask("Second username: ", fields[4], sizeof(fields[4]), 0) < 0 ||
+                ask("Phone: ", fields[5], sizeof(fields[5]), 0) < 0 ||
+                ask("Active (1/0): ", fields[6], sizeof(fields[6]), 0) < 0)
                 continue;
-            (void)snprintf(command, sizeof(command), "MODIFY|%s|%s|%s|%s|%s",
-                           fields[0], fields[1], fields[2], fields[3], fields[4]);
+            (void)snprintf(command, sizeof(command), "MODIFY|%s|%s|%s|%s|%s|%s|%s",
+                           fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6]);
             if (exchange(socket_fd, command) < 0)
                 return -1;
         } else if (strcmp(choice, "5") == 0) {

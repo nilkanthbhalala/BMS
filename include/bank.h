@@ -145,7 +145,8 @@ int store_withdraw(const Session *session, int64_t amount, int64_t *balance);
 int store_history(const Session *session, int socket_fd);
 int store_admin_add(int socket_fd, int joint, char **fields);
 int store_admin_delete(int socket_fd, uint32_t account_id);
-int store_admin_modify(int socket_fd, uint32_t account_id, const char *name_a, const char *name_b, const char *phone, int active);
+int store_admin_modify(int socket_fd, uint32_t account_id, const char *name_a, const char *name_b,
+                       const char *username_a, const char *username_b, const char *phone, int active);
 int store_admin_list(int socket_fd);
 int store_admin_search(int socket_fd, const char *key);
 int store_admin_change_password(const char *old_password, const char *new_password);

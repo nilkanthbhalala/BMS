@@ -12,7 +12,7 @@
 <text x="390" y="207" font-size="16">bank_employee.c — assisted transactions</text>
 <text x="390" y="240" font-size="16">manager.c — loan review and decision</text>
 <text x="390" y="273" font-size="16">administrator.c — staff login management</text>
-<text x="390" y="320" font-size="14" fill="#486581">server.c dispatches requests; store.c owns persistence</text>
+<text x="390" y="320" font-size="14" fill="#486581">server.c routes requests; store modules manage persistence</text>
 <rect x="755" y="100" width="400" height="250" rx="12" fill="#fff4df" stroke="#d89422" stroke-width="2"/>
 <text x="955" y="132" text-anchor="middle" font-size="21" font-weight="bold">Persistent Records</text>
 <text x="780" y="174" font-size="16">Account — holder credentials, balance, status</text>

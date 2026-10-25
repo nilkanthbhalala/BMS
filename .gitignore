@@ -1,0 +1,6 @@
+bin/
+build/
+# data/
+Makefiles
+README.md
+VIVA.md

@@ -25,11 +25,12 @@ int dispatch_administrator(int fd, char **fields, int count, const Session *sess
             return send_reply(fd, "ERR|Invalid account number");
         return store_admin_delete(fd, account_id);
     }
-    if (strcmp(fields[0], "MODIFY") == 0 && count == 6) {
+    if (strcmp(fields[0], "MODIFY") == 0 && count == 8) {
         if (parse_u32(fields[1], &account_id) < 0 ||
-            (strcmp(fields[5], "0") != 0 && strcmp(fields[5], "1") != 0))
+            (strcmp(fields[7], "0") != 0 && strcmp(fields[7], "1") != 0))
             return send_reply(fd, "ERR|Use account number and active value 0 or 1");
-        return store_admin_modify(fd, account_id, fields[2], fields[3], fields[4], fields[5][0] - '0');
+        return store_admin_modify(fd, account_id, fields[2], fields[3], fields[4], fields[5],
+                                  fields[6], fields[7][0] - '0');
     }
     if (strcmp(fields[0], "CHPASS") == 0 && count == 3) {
         int status = store_admin_change_password(fields[1], fields[2]);

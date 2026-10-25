@@ -59,7 +59,7 @@ int store_admin_change_password(const char *old_password, const char *new_passwo
     return result;
 }
 
-static int usernames_available(int fd, const char *first, const char *second)
+static int usernames_available(int fd, const char *first, const char *second, uint32_t except_id)
 {
     struct stat status;
     if (fstat(fd, &status) < 0 || status.st_size % (off_t)sizeof(Account) != 0)
@@ -68,6 +68,8 @@ static int usernames_available(int fd, const char *first, const char *second)
         Account account;
         if (pread_full(fd, &account, sizeof(account), at) != 0)
             return -1;
+        if (account.id == except_id)
+            continue;
         if (strcmp(first, account.username_a) == 0 || strcmp(first, account.username_b) == 0 ||
             (second[0] && (strcmp(second, account.username_a) == 0 || strcmp(second, account.username_b) == 0)))
             return 0;
@@ -105,7 +107,7 @@ int store_admin_add(int socket_fd, int joint, char **fields)
     if (fstat(fd, &status) < 0 || status.st_size % (off_t)sizeof(Account) != 0) {
         result = store_write_reply(socket_fd, "ERR|Account file is damaged");
     } else {
-        int available = usernames_available(fd, username_a, joint ? username_b : "");
+        int available = usernames_available(fd, username_a, joint ? username_b : "", 0);
         if (available <= 0) {
             result = store_write_reply(socket_fd, available == 0 ? "ERR|A username is already in use" : "ERR|Account file read failed");
         } else {
@@ -226,9 +228,11 @@ delete_done:
 }
 
 int store_admin_modify(int socket_fd, uint32_t account_id, const char *name_a,
-                       const char *name_b, const char *phone, int active)
+                       const char *name_b, const char *username_a,
+                       const char *username_b, const char *phone, int active)
 {
     if (!store_text_valid(name_a, BANK_NAME, 1) || !store_text_valid(name_b, BANK_NAME, 0) ||
+        !store_username_valid(username_a) || !store_text_valid(username_b, BANK_USER, 0) ||
         !store_text_valid(phone, BANK_PHONE, 0) || (active != 0 && active != 1))
         return store_write_reply(socket_fd, "ERR|Invalid modification fields");
     int fd = open(BANK_ACCOUNTS_FILE, O_RDWR | O_CLOEXEC);
@@ -250,18 +254,43 @@ int store_admin_modify(int socket_fd, uint32_t account_id, const char *name_a,
                 break;
             if (account.id != account_id)
                 continue;
-            if (!active && (account.session_a || account.session_b)) {
+            if (account.type != ACCOUNT_NORMAL && account.type != ACCOUNT_JOINT) {
+                response = "ERR|Account record is invalid";
+            } else if ((account.type == ACCOUNT_JOINT &&
+                        (!store_username_valid(username_b) || strcmp(username_a, username_b) == 0)) ||
+                       (account.type == ACCOUNT_NORMAL && username_b[0] != '\0')) {
+                response = account.type == ACCOUNT_JOINT ?
+                           "ERR|Joint accounts need two distinct valid usernames" :
+                           "ERR|Normal accounts must have a blank second username";
+            } else if ((strcmp(account.username_a, username_a) != 0 ||
+                        strcmp(account.username_b, account.type == ACCOUNT_JOINT ? username_b : "") != 0) &&
+                       (account.session_a || account.session_b)) {
+                response = "ERR|Log out account holders before changing usernames";
+            } else if (!active && (account.session_a || account.session_b)) {
                 response = "ERR|Log out account holders before deactivating this account";
             } else {
+                int available = usernames_available(fd, username_a,
+                                                    account.type == ACCOUNT_JOINT ? username_b : "",
+                                                    account.id);
+                if (available <= 0) {
+                    response = available == 0 ? "ERR|A username is already in use" :
+                               "ERR|Account file read failed";
+                    break;
+                }
                 (void)snprintf(account.name_a, sizeof(account.name_a), "%s", name_a);
                 (void)snprintf(account.name_b, sizeof(account.name_b), "%s", account.type == ACCOUNT_JOINT ? name_b : "");
+                (void)snprintf(account.username_a, sizeof(account.username_a), "%s", username_a);
+                (void)snprintf(account.username_b, sizeof(account.username_b), "%s",
+                               account.type == ACCOUNT_JOINT ? username_b : "");
                 (void)snprintf(account.phone, sizeof(account.phone), "%s", phone);
                 account.active = (uint32_t)active;
                 if (pwrite_full(fd, &account, sizeof(account), at) < 0)
                     response = "ERR|Could not update account";
                 else {
                     response = "OK|Account updated";
-                    audit_log_event("ACCOUNT_MODIFY", "admin", account_id, active ? "account active" : "account inactive");
+                    audit_log_event("ACCOUNT_MODIFY", "admin", account_id,
+                                    active ? "account details and usernames updated; active" :
+                                             "account details and usernames updated; inactive");
                 }
             }
             break;
