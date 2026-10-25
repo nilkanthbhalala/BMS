@@ -380,17 +380,27 @@ int store_admin_add_staff(int socket_fd, const char *role, const char *username,
     int fd = open(BANK_STAFF_FILE, O_RDWR | O_CLOEXEC);
     if (fd < 0)
         return store_write_reply(socket_fd, "ERR|Staff file unavailable");
-    int result = store_write_reply(socket_fd, "ERR|Could not create staff login");
+    const char *response = "ERR|Could not create staff login";
     if (lock_range(fd, F_WRLCK, 0, 0) == 0) {
         struct stat status;
-        if (fstat(fd, &status) == 0 && status.st_size % (off_t)sizeof(Staff) == 0) {
+        if (fstat(fd, &status) < 0 || status.st_size % (off_t)sizeof(Staff) != 0) {
+            response = "ERR|Staff file is damaged";
+        } else {
             int duplicate = 0;
             for (off_t offset = 0; offset < status.st_size; offset += (off_t)sizeof(Staff)) {
                 Staff current;
-                if (pread_full(fd, &current, sizeof(current), offset) != 0) { duplicate = 1; break; }
-                if (strcmp(current.username, username) == 0) { duplicate = 1; break; }
+                if (pread_full(fd, &current, sizeof(current), offset) != 0) {
+                    duplicate = -1;
+                    break;
+                }
+                if (strcmp(current.username, username) == 0) {
+                    duplicate = 1;
+                    break;
+                }
             }
-            if (!duplicate) {
+            if (duplicate < 0) {
+                response = "ERR|Staff file read failed";
+            } else if (duplicate == 0) {
                 Staff staff;
                 memset(&staff, 0, sizeof(staff));
                 staff.role = wanted_role;
@@ -398,18 +408,155 @@ int store_admin_add_staff(int socket_fd, const char *role, const char *username,
                 (void)snprintf(staff.username, sizeof(staff.username), "%s", username);
                 if (make_password_hash(password, staff.password_hash, sizeof(staff.password_hash)) == 0 &&
                     pwrite_full(fd, &staff, sizeof(staff), status.st_size) == 0 && fsync(fd) == 0) {
-                    result = store_write_reply(socket_fd, "OK|Staff login created");
+                    response = "OK|Staff login created";
                     audit_log_event("STAFF_ADD", "admin", 0, role);
                 } else {
                     int cleanup_result = ftruncate(fd, status.st_size);
                     (void)cleanup_result;
                 }
             } else {
-                result = store_write_reply(socket_fd, "ERR|Username is already in use");
+                response = "ERR|Username is already in use";
             }
         }
         (void)lock_range(fd, F_UNLCK, 0, 0);
     }
     close(fd);
-    return result;
+    return store_write_reply(socket_fd, response);
+}
+
+int store_staff_list(int socket_fd, uint32_t role_filter)
+{
+    if (role_filter != 0 && role_filter != ROLE_EMPLOYEE)
+        return store_write_reply(socket_fd, "ERR|Invalid staff role filter");
+    int fd = open(BANK_STAFF_FILE, O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return store_write_reply(socket_fd, "ERR|Staff file unavailable");
+    if (lock_range(fd, F_RDLCK, 0, 0) < 0) {
+        close(fd);
+        return store_write_reply(socket_fd, "ERR|Could not lock staff file");
+    }
+    struct stat status;
+    if (fstat(fd, &status) < 0 || status.st_size % (off_t)sizeof(Staff) != 0) {
+        (void)lock_range(fd, F_UNLCK, 0, 0);
+        close(fd);
+        return store_write_reply(socket_fd, "ERR|Staff file is damaged");
+    }
+    if (send_line(socket_fd, "OK|Staff login list") < 0) {
+        (void)lock_range(fd, F_UNLCK, 0, 0);
+        close(fd);
+        return -1;
+    }
+    int found = 0;
+    for (off_t at = 0; at < status.st_size; at += (off_t)sizeof(Staff)) {
+        Staff staff;
+        if (pread_full(fd, &staff, sizeof(staff), at) != 0) {
+            (void)lock_range(fd, F_UNLCK, 0, 0);
+            close(fd);
+            return -1;
+        }
+        if (role_filter != 0 && staff.role != role_filter)
+            continue;
+        const char *role = staff.role == ROLE_EMPLOYEE ? "employee" :
+                           staff.role == ROLE_MANAGER ? "manager" : "invalid";
+        char line[128];
+        (void)snprintf(line, sizeof(line), "%s | %s | %s", role, staff.username,
+                       staff.active ? "active" : "inactive");
+        if (send_line(socket_fd, line) < 0) {
+            (void)lock_range(fd, F_UNLCK, 0, 0);
+            close(fd);
+            return -1;
+        }
+        found++;
+    }
+    if (!found && send_line(socket_fd, "No staff logins") < 0) {
+        (void)lock_range(fd, F_UNLCK, 0, 0);
+        close(fd);
+        return -1;
+    }
+    (void)lock_range(fd, F_UNLCK, 0, 0);
+    close(fd);
+    return send_line(socket_fd, ".");
+}
+
+int store_staff_modify(int socket_fd, const Session *session, const char *target_username,
+                       const char *new_username, const char *new_password, const char *active_text)
+{
+    if (session == NULL || (session->role != ROLE_ADMIN && session->role != ROLE_MANAGER))
+        return store_write_reply(socket_fd, "ERR|Administrator or manager login required");
+    if (!store_username_valid(target_username) || !store_text_valid(new_username, BANK_USER, 0) ||
+        (new_username[0] && !store_username_valid(new_username)) ||
+        !store_text_valid(new_password, 96, 0) ||
+        (new_password[0] && !store_password_valid(new_password)) ||
+        !store_text_valid(active_text, 2, 0) ||
+        (active_text[0] && strcmp(active_text, "0") != 0 && strcmp(active_text, "1") != 0))
+        return store_write_reply(socket_fd, "ERR|Invalid staff modification fields");
+    if (!new_username[0] && !new_password[0] && !active_text[0])
+        return store_write_reply(socket_fd, "ERR|No staff changes were provided");
+    int fd = open(BANK_STAFF_FILE, O_RDWR | O_CLOEXEC);
+    if (fd < 0)
+        return store_write_reply(socket_fd, "ERR|Staff file unavailable");
+    if (lock_range(fd, F_WRLCK, 0, 0) < 0) {
+        close(fd);
+        return store_write_reply(socket_fd, "ERR|Could not lock staff file");
+    }
+    struct stat status;
+    const char *response = "ERR|Staff login not found";
+    if (fstat(fd, &status) < 0 || status.st_size % (off_t)sizeof(Staff) != 0) {
+        response = "ERR|Staff file is damaged";
+    } else {
+        for (off_t at = 0; at < status.st_size; at += (off_t)sizeof(Staff)) {
+            Staff staff;
+            if (pread_full(fd, &staff, sizeof(staff), at) != 0) {
+                response = "ERR|Staff file read failed";
+                break;
+            }
+            if (strcmp(staff.username, target_username) != 0)
+                continue;
+            if (staff.role != ROLE_EMPLOYEE && staff.role != ROLE_MANAGER) {
+                response = "ERR|Staff record is invalid";
+                break;
+            }
+            if (session->role == ROLE_MANAGER && staff.role != ROLE_EMPLOYEE) {
+                response = "ERR|Managers can modify bank employee logins only";
+                break;
+            }
+            if (new_username[0] && strcmp(new_username, staff.username) != 0) {
+                int duplicate = 0;
+                for (off_t check = 0; check < status.st_size; check += (off_t)sizeof(Staff)) {
+                    Staff existing;
+                    if (pread_full(fd, &existing, sizeof(existing), check) != 0) {
+                        duplicate = -1;
+                        break;
+                    }
+                    if (check != at && strcmp(existing.username, new_username) == 0) {
+                        duplicate = 1;
+                        break;
+                    }
+                }
+                if (duplicate != 0) {
+                    response = duplicate > 0 ? "ERR|Username is already in use" :
+                               "ERR|Staff file read failed";
+                    break;
+                }
+                (void)snprintf(staff.username, sizeof(staff.username), "%s", new_username);
+            }
+            if (new_password[0] &&
+                make_password_hash(new_password, staff.password_hash, sizeof(staff.password_hash)) < 0) {
+                response = "ERR|Could not update staff password";
+                break;
+            }
+            if (active_text[0])
+                staff.active = (uint32_t)(active_text[0] - '0');
+            if (pwrite_full(fd, &staff, sizeof(staff), at) < 0 || fsync(fd) < 0) {
+                response = "ERR|Could not update staff login";
+                break;
+            }
+            response = "OK|Staff login updated";
+            audit_log_event("STAFF_MODIFY", session->username, 0, "staff login updated");
+            break;
+        }
+    }
+    (void)lock_range(fd, F_UNLCK, 0, 0);
+    close(fd);
+    return store_write_reply(socket_fd, response);
 }

@@ -39,6 +39,16 @@ int dispatch_administrator(int fd, char **fields, int count, const Session *sess
     }
     if (strcmp(fields[0], "ADD_STAFF") == 0 && count == 4)
         return administrator_add_staff(fd, session, fields);
+    if (strcmp(fields[0], "STAFF_LIST") == 0 && count == 1) {
+        if (session == NULL || session->role != ROLE_ADMIN)
+            return send_reply(fd, "ERR|Administrator login required");
+        return store_staff_list(fd, 0);
+    }
+    if (strcmp(fields[0], "STAFF_MODIFY") == 0 && count == 5) {
+        if (session == NULL || session->role != ROLE_ADMIN)
+            return send_reply(fd, "ERR|Administrator login required");
+        return store_staff_modify(fd, session, fields[1], fields[2], fields[3], fields[4]);
+    }
     if (strcmp(fields[0], "LOANS") == 0 && count == 1)
         return store_list_loans(fd, session, 1);
     if (strcmp(fields[0], "REVIEW") == 0 && count == 3)

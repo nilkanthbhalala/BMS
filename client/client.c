@@ -193,7 +193,7 @@ static int admin_menu(int socket_fd)
 {
     char choice[32], fields[8][128], command[BANK_LINE];
     for (;;) {
-        (void)write_text("\n1. Add normal account\n2. Add joint account\n3. Delete account\n4. Modify account\n5. Search account\n6. List accounts\n7. Change administrator password\n8. Add employee/manager login\n9. View loan queue\n10. Review loan\n11. Logout\n");
+        (void)write_text("\n1. Add normal account\n2. Add joint account\n3. Delete account\n4. Modify account\n5. Search account\n6. List accounts\n7. Change administrator password\n8. Add employee/manager login\n9. List employee/manager logins\n10. Modify employee/manager login\n11. View loan queue\n12. Review loan\n13. Logout\n");
         if (ask("Choice: ", choice, sizeof(choice), 0) < 0)
             continue;
         if (strcmp(choice, "1") == 0) {
@@ -266,20 +266,34 @@ static int admin_menu(int socket_fd)
             if (exchange(socket_fd, command) < 0)
                 return -1;
         } else if (strcmp(choice, "9") == 0) {
-            if (exchange(socket_fd, "LOANS") < 0)
+            if (exchange(socket_fd, "STAFF_LIST") < 0)
                 return -1;
         } else if (strcmp(choice, "10") == 0) {
+            (void)write_text("Leave new username or password blank to keep it unchanged. Passwords are never displayed. Active: 1, inactive: 0, blank keeps current status.\n");
+            if (ask("Current staff username: ", fields[0], sizeof(fields[0]), 0) < 0 ||
+                ask("New username: ", fields[1], sizeof(fields[1]), 0) < 0 ||
+                ask("New password: ", fields[2], sizeof(fields[2]), 1) < 0 ||
+                ask("Active (1/0): ", fields[3], sizeof(fields[3]), 0) < 0)
+                continue;
+            (void)snprintf(command, sizeof(command), "STAFF_MODIFY|%s|%s|%s|%s",
+                           fields[0], fields[1], fields[2], fields[3]);
+            if (exchange(socket_fd, command) < 0)
+                return -1;
+        } else if (strcmp(choice, "11") == 0) {
+            if (exchange(socket_fd, "LOANS") < 0)
+                return -1;
+        } else if (strcmp(choice, "12") == 0) {
             if (ask("Loan number: ", fields[0], sizeof(fields[0]), 0) < 0 ||
                 ask("Decision (approve or reject): ", fields[1], sizeof(fields[1]), 0) < 0)
                 continue;
             (void)snprintf(command, sizeof(command), "REVIEW|%s|%s", fields[0], fields[1]);
             if (exchange(socket_fd, command) < 0)
                 return -1;
-        } else if (strcmp(choice, "11") == 0) {
+        } else if (strcmp(choice, "13") == 0) {
             (void)exchange(socket_fd, "LOGOUT");
             return 0;
         } else {
-            (void)write_text("Choose a number from 1 to 11.\n");
+            (void)write_text("Choose a number from 1 to 13.\n");
         }
     }
 }
@@ -289,7 +303,7 @@ static int staff_menu(int socket_fd, int manager)
     char choice[32], first[128], second[128], command[BANK_LINE];
     for (;;) {
         (void)write_text(manager ?
-            "\n1. List accounts\n2. Search account\n3. Deposit to account\n4. Withdraw from account\n5. View loan queue\n6. Review loan\n7. Change password\n8. Logout\n" :
+            "\n1. List accounts\n2. Search account\n3. Deposit to account\n4. Withdraw from account\n5. View loan queue\n6. Review loan\n7. List bank employee logins\n8. Modify bank employee login\n9. Change password\n10. Logout\n" :
             "\n1. List accounts\n2. Search account\n3. Deposit to account\n4. Withdraw from account\n5. View loan queue\n6. Change password\n7. Logout\n");
         if (ask("Choice: ", choice, sizeof(choice), 0) < 0)
             continue;
@@ -311,12 +325,26 @@ static int staff_menu(int socket_fd, int manager)
                 ask("Decision (approve or reject): ", second, sizeof(second), 0) < 0) continue;
             (void)snprintf(command, sizeof(command), "REVIEW|%s|%s", first, second);
             if (exchange(socket_fd, command) < 0) return -1;
-        } else if (strcmp(choice, manager ? "7" : "6") == 0) {
+        } else if (manager && strcmp(choice, "7") == 0) {
+            if (exchange(socket_fd, "STAFF_LIST") < 0) return -1;
+        } else if (manager && strcmp(choice, "8") == 0) {
+            (void)write_text("You can modify employee logins only. Leave new username or password blank to keep it unchanged. Passwords are never displayed. Active: 1, inactive: 0, blank keeps current status.\n");
+            if (ask("Current employee username: ", first, sizeof(first), 0) < 0 ||
+                ask("New username: ", second, sizeof(second), 0) < 0)
+                continue;
+            char new_password[128], active[8];
+            if (ask("New password: ", new_password, sizeof(new_password), 1) < 0 ||
+                ask("Active (1/0): ", active, sizeof(active), 0) < 0)
+                continue;
+            (void)snprintf(command, sizeof(command), "STAFF_MODIFY|%s|%s|%s|%s",
+                           first, second, new_password, active);
+            if (exchange(socket_fd, command) < 0) return -1;
+        } else if (strcmp(choice, manager ? "9" : "6") == 0) {
             if (ask("Current password: ", first, sizeof(first), 1) < 0 ||
                 ask("New password: ", second, sizeof(second), 1) < 0) continue;
             (void)snprintf(command, sizeof(command), "CHPASS|%s|%s", first, second);
             if (exchange(socket_fd, command) < 0) return -1;
-        } else if (strcmp(choice, manager ? "8" : "7") == 0) {
+        } else if (strcmp(choice, manager ? "10" : "7") == 0) {
             (void)exchange(socket_fd, "LOGOUT");
             return 0;
         }

@@ -154,6 +154,9 @@ int store_apply_loan(const Session *session, int64_t amount, uint32_t term_month
 int store_list_loans(int socket_fd, const Session *session, int all_accounts);
 int store_review_loan(int socket_fd, const Session *session, uint32_t loan_id, int approve);
 int store_admin_add_staff(int socket_fd, const char *role, const char *username, const char *password);
+int store_staff_list(int socket_fd, uint32_t role_filter);
+int store_staff_modify(int socket_fd, const Session *session, const char *target_username,
+                       const char *new_username, const char *new_password, const char *active_text);
 int store_staff_transaction(int socket_fd, const Session *session, uint32_t account_id,
                             int64_t amount, int withdraw);
 int store_recover_journal(void);
